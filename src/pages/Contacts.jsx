@@ -17,6 +17,7 @@ import Textarea from '../components/ui/Textarea'
 import MultiSelect from '../components/ui/MultiSelect'
 import EmptyState from '../components/ui/EmptyState'
 import { SkeletonRow } from '../components/ui/Skeleton'
+import ImportModal from '../components/ImportModal'
 
 const EMPTY_FORM = { name: '', phone: '', notes: '', status: 'active', theme_ids: [], tag_ids: [], themes: [], tags: [] }
 
@@ -26,13 +27,14 @@ export default function Contacts() {
     const [statusFilter, setStatusFilter] = useState('')
     const [themeFilter, setThemeFilter] = useState('')
 
-    const { contacts, loading, total, createContact, updateContact, deleteContact, deleteMany } = useContacts({
+    const { contacts, loading, total, createContact, updateContact, deleteContact, deleteMany, importContacts } = useContacts({
         ...filters, search, status: statusFilter, theme_id: themeFilter
     })
     const { themes } = useThemes()
     const { tags } = useTags()
     const { toast } = useToast()
 
+    const [importModal, setImportModal] = useState(false)
     const [modal, setModal] = useState(false)
     const [editing, setEditing] = useState(null)
     const [form, setForm] = useState(EMPTY_FORM)
@@ -101,7 +103,7 @@ export default function Contacts() {
                 subtitle={`${total} contato${total !== 1 ? 's' : ''} cadastrado${total !== 1 ? 's' : ''}`}
                 actions={
                     <>
-                        <Button variant="secondary" size="sm" icon={<Upload size={14} />}>Importar</Button>
+                        <Button variant="secondary" size="sm" icon={<Upload size={14} />} onClick={() => setImportModal(true)}>Importar</Button>
                         <Button variant="secondary" size="sm" icon={<Download size={14} />}>Exportar</Button>
                         <Button onClick={openCreate} icon={<Plus size={15} />}>Novo contato</Button>
                     </>
@@ -226,7 +228,12 @@ export default function Contacts() {
                                     </div>
                                 </td>
                                 <td className="px-4 py-3"><Badge status={c.status} /></td>
-                                <td className="px-4 py-3"><Badge status={c.source}>{c.source}</Badge></td>
+                                <td className="px-4 py-3">
+                                    {c.origin
+                                        ? <span className="text-xs text-gray-600">{c.origin}</span>
+                                        : <Badge status={c.source}>{c.source}</Badge>
+                                    }
+                                </td>
                                 <td className="px-4 py-3">
                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button
@@ -316,6 +323,17 @@ export default function Contacts() {
                     </div>
                 </form>
             </Modal>
+
+            {/* Import modal */}
+            <ImportModal
+                open={importModal}
+                onClose={(count) => {
+                    setImportModal(false)
+                    if (count > 0) toast(`${count} contato(s) importado(s) com sucesso`, 'success')
+                }}
+                onImport={importContacts}
+                tags={tags}
+            />
 
             {/* Confirm delete */}
             <ConfirmDialog

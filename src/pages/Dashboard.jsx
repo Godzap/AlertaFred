@@ -10,6 +10,7 @@ import { ptBR } from 'date-fns/locale'
 const actionLabels = {
     contact_created: 'Contato criado',
     contact_updated: 'Contato atualizado',
+    contacts_imported: 'Contatos importados',
     alarm_triggered: 'Alarme disparado',
     alarm_paused: 'Alarme pausado',
     form_submitted: 'Formulário respondido',
@@ -21,6 +22,7 @@ const actionLabels = {
 const actionIcons = {
     contact_created: <Users size={14} />,
     contact_updated: <Users size={14} />,
+    contacts_imported: <Users size={14} />,
     alarm_triggered: <Bell size={14} />,
     alarm_paused: <Bell size={14} />,
     form_submitted: <Activity size={14} />,
@@ -32,7 +34,12 @@ const actionIcons = {
 function ActivityItem({ log }) {
     const label = actionLabels[log.action] || log.action
     const icon = actionIcons[log.action] || <Activity size={14} />
-    const detail = log.details?.contact_name || log.details?.alarm_name || log.details?.template_name || log.details?.tag_name || log.details?.form_title || ''
+    let detail = log.details?.contact_name || log.details?.alarm_name || log.details?.template_name || log.details?.tag_name || log.details?.form_title || ''
+    if (log.action === 'contacts_imported') {
+        const count = log.details?.count ?? 0
+        const origin = log.details?.origin
+        detail = origin ? `${count} contato${count !== 1 ? 's' : ''} de ${origin}` : `${count} contato${count !== 1 ? 's' : ''}`
+    }
 
     let ago = ''
     try { ago = formatDistanceToNow(new Date(log.created_at), { addSuffix: true, locale: ptBR }) } catch {}

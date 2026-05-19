@@ -97,23 +97,29 @@ export function useContacts(filters = {}) {
 
     useEffect(() => { fetchContacts() }, [fetchContacts])
 
-    const createContact = async ({ themes = [], tags = [], ...payload }) => {
+    const createContact = async ({ themes = [], tags = [], theme_ids = [], tag_ids = [], ...payload }) => {
         const user_id = await getCurrentUserId()
         const { data: contact, error } = await supabase
             .from('contacts')
             .insert({ status: 'active', source: 'manual', ...payload, user_id })
             .select()
             .single()
-        if (error || !contact) return null
+        if (error || !contact) {
+            console.error('createContact error:', error)
+            return null
+        }
 
-        if (themes.length > 0) {
+        const themeList = themes.length > 0 ? themes.map(t => t.id ?? t) : theme_ids
+        const tagList = tags.length > 0 ? tags.map(t => t.id ?? t) : tag_ids
+
+        if (themeList.length > 0) {
             await supabase.from('contact_themes').insert(
-                themes.map(t => ({ contact_id: contact.id, theme_id: t.id ?? t }))
+                themeList.map(id => ({ contact_id: contact.id, theme_id: id }))
             )
         }
-        if (tags.length > 0) {
+        if (tagList.length > 0) {
             await supabase.from('contact_tags').insert(
-                tags.map(t => ({ contact_id: contact.id, tag_id: t.id ?? t }))
+                tagList.map(id => ({ contact_id: contact.id, tag_id: id }))
             )
         }
 
@@ -121,7 +127,7 @@ export function useContacts(filters = {}) {
         return contact
     }
 
-    const updateContact = async (id, { themes, tags, ...payload }) => {
+    const updateContact = async (id, { themes, tags, theme_ids, tag_ids, ...payload }) => {
         if (Object.keys(payload).length > 0) {
             await supabase
                 .from('contacts')
@@ -129,20 +135,25 @@ export function useContacts(filters = {}) {
                 .eq('id', id)
         }
 
-        if (themes !== undefined) {
+        const themeList = themes !== undefined ? themes.map(t => t.id ?? t)
+            : theme_ids !== undefined ? theme_ids : undefined
+        const tagList = tags !== undefined ? tags.map(t => t.id ?? t)
+            : tag_ids !== undefined ? tag_ids : undefined
+
+        if (themeList !== undefined) {
             await supabase.from('contact_themes').delete().eq('contact_id', id)
-            if (themes.length > 0) {
+            if (themeList.length > 0) {
                 await supabase.from('contact_themes').insert(
-                    themes.map(t => ({ contact_id: id, theme_id: t.id ?? t }))
+                    themeList.map(tid => ({ contact_id: id, theme_id: tid }))
                 )
             }
         }
 
-        if (tags !== undefined) {
+        if (tagList !== undefined) {
             await supabase.from('contact_tags').delete().eq('contact_id', id)
-            if (tags.length > 0) {
+            if (tagList.length > 0) {
                 await supabase.from('contact_tags').insert(
-                    tags.map(t => ({ contact_id: id, tag_id: t.id ?? t }))
+                    tagList.map(tid => ({ contact_id: id, tag_id: tid }))
                 )
             }
         }

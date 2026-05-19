@@ -1,7 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { mockContacts as initial } from '../data/mockData'
-
-let store = [...initial]
+import { supabase, getCurrentUserId } from '../lib/supabase'
 
 export function useContacts(filters = {}) {
     const [contacts, setContacts] = useState([])
@@ -10,63 +8,160 @@ export function useContacts(filters = {}) {
 
     const fetchContacts = useCallback(async () => {
         setLoading(true)
-        await delay(200)
 
-        let data = [...store]
+        // filter by theme_id / tag_id via junction tables first
+        let allowedIds = null
 
-        if (filters.status) data = data.filter(c => c.status === filters.status)
-        if (filters.theme_id) data = data.filter(c => c.themes?.some(t => t.id === filters.theme_id))
-        if (filters.tag_id) data = data.filter(c => c.tags?.some(t => t.id === filters.tag_id))
-        if (filters.search) {
-            const q = filters.search.toLowerCase()
-            data = data.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q))
+        if (filters.theme_id) {
+            const { data } = await supabase
+                .from('contact_themes')
+                .select('contact_id')
+                .eq('theme_id', filters.theme_id)
+            allowedIds = (data ?? []).map(r => r.contact_id)
+            if (allowedIds.length === 0) {
+                setContacts([])
+                setTotal(0)
+                setLoading(false)
+                return
+            }
         }
 
-        const total = data.length
+        if (filters.tag_id) {
+            const { data } = await supabase
+                .from('contact_tags')
+                .select('contact_id')
+                .eq('tag_id', filters.tag_id)
+            const tagIds = (data ?? []).map(r => r.contact_id)
+            if (tagIds.length === 0) {
+                setContacts([])
+                setTotal(0)
+                setLoading(false)
+                return
+            }
+            allowedIds = allowedIds
+                ? allowedIds.filter(id => tagIds.includes(id))
+                : tagIds
+        }
+
+        // fetch contacts
+        let query = supabase
+            .from('contacts')
+            .select('*')
+            .order('created_at', { ascending: false })
+
+        if (filters.status) query = query.eq('status', filters.status)
+        if (filters.search) {
+            const q = filters.search
+            query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%`)
+        }
+        if (allowedIds) query = query.in('id', allowedIds)
+
         const page = filters.page || 1
         const perPage = filters.perPage || 20
-        const from = (page - 1) * perPage
-        data = data.slice(from, from + perPage)
+        query = query.range((page - 1) * perPage, page * perPage - 1)
 
-        setTotal(total)
-        setContacts(data)
+        const { data: contactsData, error } = await query
+
+        if (error) {
+            console.error('useContacts fetch error:', error)
+            setLoading(false)
+            return
+        }
+
+        // fetch themes and tags for these contacts separately
+        const ids = contactsData.map(c => c.id)
+        const themesMap = {}
+        const tagsMap = {}
+
+        if (ids.length > 0) {
+            const [{ data: ctData }, { data: ctgData }] = await Promise.all([
+                supabase.from('contact_themes').select('contact_id, themes(id, name, color)').in('contact_id', ids),
+                supabase.from('contact_tags').select('contact_id, tags(id, name, color)').in('contact_id', ids),
+            ])
+
+            ;(ctData ?? []).forEach(row => {
+                if (!themesMap[row.contact_id]) themesMap[row.contact_id] = []
+                if (row.themes) themesMap[row.contact_id].push(row.themes)
+            })
+            ;(ctgData ?? []).forEach(row => {
+                if (!tagsMap[row.contact_id]) tagsMap[row.contact_id] = []
+                if (row.tags) tagsMap[row.contact_id].push(row.tags)
+            })
+        }
+
+        setContacts(contactsData.map(c => ({
+            ...c,
+            themes: themesMap[c.id] ?? [],
+            tags: tagsMap[c.id] ?? [],
+        })))
+        setTotal(contactsData.length)
         setLoading(false)
     }, [filters.status, filters.theme_id, filters.tag_id, filters.search, filters.page, filters.perPage])
 
     useEffect(() => { fetchContacts() }, [fetchContacts])
 
-    const createContact = async (payload) => {
-        await delay(400)
-        const item = {
-            id: uid(), user_id: 'user-001', status: 'active', source: 'manual',
-            themes: [], tags: [], notes: '', custom_fields: {},
-            created_at: new Date().toISOString(), ...payload,
+    const createContact = async ({ themes = [], tags = [], ...payload }) => {
+        const user_id = await getCurrentUserId()
+        const { data: contact, error } = await supabase
+            .from('contacts')
+            .insert({ status: 'active', source: 'manual', ...payload, user_id })
+            .select()
+            .single()
+        if (error || !contact) return null
+
+        if (themes.length > 0) {
+            await supabase.from('contact_themes').insert(
+                themes.map(t => ({ contact_id: contact.id, theme_id: t.id ?? t }))
+            )
         }
-        store = [item, ...store]
+        if (tags.length > 0) {
+            await supabase.from('contact_tags').insert(
+                tags.map(t => ({ contact_id: contact.id, tag_id: t.id ?? t }))
+            )
+        }
+
         await fetchContacts()
-        return item
+        return contact
     }
 
-    const updateContact = async (id, payload) => {
-        await delay(400)
-        store = store.map(c => c.id === id ? { ...c, ...payload } : c)
+    const updateContact = async (id, { themes, tags, ...payload }) => {
+        if (Object.keys(payload).length > 0) {
+            await supabase
+                .from('contacts')
+                .update({ ...payload, updated_at: new Date().toISOString() })
+                .eq('id', id)
+        }
+
+        if (themes !== undefined) {
+            await supabase.from('contact_themes').delete().eq('contact_id', id)
+            if (themes.length > 0) {
+                await supabase.from('contact_themes').insert(
+                    themes.map(t => ({ contact_id: id, theme_id: t.id ?? t }))
+                )
+            }
+        }
+
+        if (tags !== undefined) {
+            await supabase.from('contact_tags').delete().eq('contact_id', id)
+            if (tags.length > 0) {
+                await supabase.from('contact_tags').insert(
+                    tags.map(t => ({ contact_id: id, tag_id: t.id ?? t }))
+                )
+            }
+        }
+
         await fetchContacts()
     }
 
     const deleteContact = async (id) => {
-        await delay(300)
-        store = store.filter(c => c.id !== id)
+        await supabase.from('contacts').delete().eq('id', id)
         await fetchContacts()
     }
 
     const deleteMany = async (ids) => {
-        await delay(400)
-        store = store.filter(c => !ids.includes(c.id))
+        await supabase.from('contacts').delete().in('id', ids)
         await fetchContacts()
     }
 
     return { contacts, loading, total, createContact, updateContact, deleteContact, deleteMany, refetch: fetchContacts }
 }
-
-function delay(ms) { return new Promise(r => setTimeout(r, ms)) }
-function uid() { return 'c-' + Math.random().toString(36).slice(2, 9) }

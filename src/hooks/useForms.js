@@ -1,48 +1,82 @@
 import { useState, useCallback, useEffect } from 'react'
-import { mockForms as initial } from '../data/mockData'
-
-let store = [...initial]
+import { supabase, getCurrentUserId } from '../lib/supabase'
 
 export function useForms() {
     const [forms, setForms] = useState([])
     const [loading, setLoading] = useState(true)
 
-    const fetch = useCallback(async () => {
+    const fetchForms = useCallback(async () => {
         setLoading(true)
-        await delay(200)
-        setForms([...store])
+        const { data, error } = await supabase
+            .from('forms')
+            .select('*, form_fields(*)')
+            .order('created_at', { ascending: false })
+        if (!error) {
+            setForms((data ?? []).map(f => ({
+                ...f,
+                fields: (f.form_fields ?? []).sort((a, b) => a.position - b.position),
+            })))
+        }
         setLoading(false)
     }, [])
 
-    useEffect(() => { fetch() }, [fetch])
+    useEffect(() => { fetchForms() }, [fetchForms])
 
-    const createForm = async (payload) => {
-        await delay(400)
-        const item = { id: uid(), user_id: 'user-001', active: true, submissions: 0, created_at: new Date().toISOString(), ...payload }
-        store = [item, ...store]
-        await fetch()
-        return item
+    const createForm = async ({ fields = [], ...payload }) => {
+        const user_id = await getCurrentUserId()
+        const { data: form, error } = await supabase
+            .from('forms')
+            .insert({ active: true, ...payload, user_id })
+            .select()
+            .single()
+        if (error || !form) return null
+
+        if (fields.length > 0) {
+            await supabase.from('form_fields').insert(
+                fields.map((f, i) => ({ ...f, form_id: form.id, position: i }))
+            )
+        }
+
+        await fetchForms()
+        return form
     }
 
-    const updateForm = async (id, payload) => {
-        await delay(400)
-        store = store.map(f => f.id === id ? { ...f, ...payload } : f)
-        await fetch()
+    const updateForm = async (id, { fields, ...payload }) => {
+        await supabase
+            .from('forms')
+            .update({ ...payload, updated_at: new Date().toISOString() })
+            .eq('id', id)
+
+        if (fields !== undefined) {
+            await supabase.from('form_fields').delete().eq('form_id', id)
+            if (fields.length > 0) {
+                await supabase.from('form_fields').insert(
+                    fields.map((f, i) => ({ ...f, form_id: id, position: i }))
+                )
+            }
+        }
+
+        await fetchForms()
     }
 
     const deleteForm = async (id) => {
-        await delay(300)
-        store = store.filter(f => f.id !== id)
-        await fetch()
+        await supabase.from('forms').delete().eq('id', id)
+        await fetchForms()
     }
 
     const getFormBySlug = async (slug) => {
-        await delay(200)
-        return store.find(f => f.slug === slug && f.active) || null
+        const { data } = await supabase
+            .from('forms')
+            .select('*, form_fields(*)')
+            .eq('slug', slug)
+            .eq('active', true)
+            .single()
+        if (!data) return null
+        return {
+            ...data,
+            fields: (data.form_fields ?? []).sort((a, b) => a.position - b.position),
+        }
     }
 
-    return { forms, loading, createForm, updateForm, deleteForm, getFormBySlug, refetch: fetch }
+    return { forms, loading, createForm, updateForm, deleteForm, getFormBySlug, refetch: fetchForms }
 }
-
-function delay(ms) { return new Promise(r => setTimeout(r, ms)) }
-function uid() { return 'frm-' + Math.random().toString(36).slice(2, 9) }

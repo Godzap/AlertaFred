@@ -46,6 +46,7 @@ export function useContacts(filters = {}) {
         // fetch contacts
         let query = supabase
             .from('contacts')
+<<<<<<< HEAD
             .select('*')
             .order('created_at', { ascending: false })
 
@@ -53,17 +54,33 @@ export function useContacts(filters = {}) {
         if (filters.search) {
             const q = filters.search
             query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%`)
+=======
+            .select('*', { count: 'exact' })
+
+        if (filters.status) query = query.eq('status', filters.status)
+        if (filters.search) {
+            query = query.or(`name.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`)
+>>>>>>> 5010542ceb4c914e8ee4f94d19417ed4f29e2b0e
         }
         if (allowedIds) query = query.in('id', allowedIds)
 
         const page = filters.page || 1
         const perPage = filters.perPage || 20
+<<<<<<< HEAD
         query = query.range((page - 1) * perPage, page * perPage - 1)
 
         const { data: contactsData, error } = await query
 
         if (error) {
             console.error('useContacts fetch error:', error)
+=======
+        const from = (page - 1) * perPage
+        query = query.range(from, from + perPage - 1).order('created_at', { ascending: false })
+
+        const { data: contactsData, count, error } = await query
+
+        if (error || !contactsData) {
+>>>>>>> 5010542ceb4c914e8ee4f94d19417ed4f29e2b0e
             setLoading(false)
             return
         }
@@ -94,7 +111,11 @@ export function useContacts(filters = {}) {
             themes: themesMap[c.id] ?? [],
             tags: tagsMap[c.id] ?? [],
         })))
+<<<<<<< HEAD
         setTotal(contactsData.length)
+=======
+        setTotal(count ?? 0)
+>>>>>>> 5010542ceb4c914e8ee4f94d19417ed4f29e2b0e
         setLoading(false)
     }, [filters.status, filters.theme_id, filters.tag_id, filters.search, filters.page, filters.perPage])
 

@@ -19,7 +19,7 @@ import EmptyState from '../components/ui/EmptyState'
 import { SkeletonRow } from '../components/ui/Skeleton'
 import ImportModal from '../components/ImportModal'
 
-const EMPTY_FORM = { name: '', phone: '', notes: '', status: 'active', theme_ids: [], tag_ids: [], themes: [], tags: [] }
+const EMPTY_FORM = { name: '', phone: '', email: '', birthday: '', notes: '', status: 'active', theme_ids: [], tag_ids: [], themes: [], tags: [] }
 
 export default function Contacts() {
     const [filters, setFilters] = useState({ page: 1, perPage: 20 })
@@ -170,6 +170,8 @@ export default function Contacts() {
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Nome</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Telefone</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">E-mail</th>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Aniversário</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Temas</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Tags</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Status</th>
@@ -182,7 +184,7 @@ export default function Contacts() {
                             [...Array(5)].map((_, i) => <SkeletonRow key={i} />)
                         ) : contacts.length === 0 ? (
                             <tr>
-                                <td colSpan={8}>
+                                <td colSpan={10}>
                                     <EmptyState
                                         icon={<svg width="32" height="32" fill="none" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" /><circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="1.75" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" /></svg>}
                                         title="Nenhum contato encontrado"
@@ -217,6 +219,8 @@ export default function Contacts() {
                                     </div>
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-600 font-mono text-xs">{c.phone}</td>
+                                <td className="px-4 py-3 text-xs text-gray-500">{c.email || <span className="text-gray-300">—</span>}</td>
+                                <td className="px-4 py-3 text-xs text-gray-600">{c.birthday || <span className="text-gray-300">—</span>}</td>
                                 <td className="px-4 py-3">
                                     <div className="flex flex-wrap gap-1">
                                         {c.themes?.map(t => <Badge key={t.id} color={t.color}>{t.name}</Badge>)}
@@ -284,6 +288,24 @@ export default function Contacts() {
                             onChange={setFE('phone')}
                             placeholder="+55 11 99999-9999"
                             required
+                        />
+                        <Input
+                            label="E-mail"
+                            value={form.email}
+                            onChange={setFE('email')}
+                            placeholder="nome@exemplo.com"
+                            type="email"
+                        />
+                        <Input
+                            label="Aniversário"
+                            value={form.birthday}
+                            onChange={e => {
+                                const digits = e.target.value.replace(/\D/g, '').slice(0, 4)
+                                const masked = digits.length > 2 ? `${digits.slice(0,2)}/${digits.slice(2)}` : digits
+                                setForm(f => ({ ...f, birthday: masked }))
+                            }}
+                            placeholder="DD/MM"
+                            maxLength={5}
                         />
                     </div>
                     <MultiSelect

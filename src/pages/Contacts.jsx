@@ -333,6 +333,7 @@ export default function Contacts() {
                 }}
                 onImport={importContacts}
                 tags={tags}
+                themes={themes}
             />
 
             {/* Confirm delete */}

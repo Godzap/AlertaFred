@@ -171,14 +171,20 @@ export function useContacts(filters = {}) {
         await fetchContacts()
     }
 
-    const importContacts = async ({ rows, tag_ids = [], origin = '' }) => {
+    const importContacts = async ({ rows, tag_ids = [], theme_ids = [], origin = '' }) => {
         const user_id = await getCurrentUserId()
         const { data: created, error } = await supabase
             .from('contacts')
-            .insert(rows.map(r => ({ ...r, source: 'import', origin, user_id, status: 'active' })))
+            .insert(rows.map(r => ({ ...r, source: 'import', origin: origin || null, user_id, status: 'active' })))
             .select('id')
 
         if (error) { console.error('importContacts error:', error); return 0 }
+
+        if (theme_ids.length > 0 && created?.length > 0) {
+            await supabase.from('contact_themes').insert(
+                created.flatMap(c => theme_ids.map(tid => ({ contact_id: c.id, theme_id: tid })))
+            )
+        }
 
         if (tag_ids.length > 0 && created?.length > 0) {
             await supabase.from('contact_tags').insert(

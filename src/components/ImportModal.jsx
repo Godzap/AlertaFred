@@ -6,11 +6,12 @@ import Input from './ui/Input'
 import MultiSelect from './ui/MultiSelect'
 import { parseSpreadsheet, detectAndMapContacts } from '../lib/importUtils'
 
-export default function ImportModal({ open, onClose, onImport, tags = [] }) {
+export default function ImportModal({ open, onClose, onImport, tags = [], themes = [] }) {
     const [step, setStep] = useState(1)
     const [origem, setOrigem] = useState('')
     const [file, setFile] = useState(null)
     const [tagIds, setTagIds] = useState([])
+    const [themeIds, setThemeIds] = useState([])
     const [parsedRows, setParsedRows] = useState([])
     const [parsing, setParsing] = useState(false)
     const [parseError, setParseError] = useState('')
@@ -19,12 +20,14 @@ export default function ImportModal({ open, onClose, onImport, tags = [] }) {
     const fileRef = useRef(null)
 
     const tagOptions = tags.map(t => ({ value: t.id, label: t.name, color: t.color }))
+    const themeOptions = themes.map(t => ({ value: t.id, label: t.name, color: t.color }))
 
     const reset = () => {
         setStep(1)
         setOrigem('')
         setFile(null)
         setTagIds([])
+        setThemeIds([])
         setParsedRows([])
         setParseError('')
         setImporting(false)
@@ -74,7 +77,7 @@ export default function ImportModal({ open, onClose, onImport, tags = [] }) {
     const handleImport = async () => {
         setImporting(true)
         try {
-            const count = await onImport({ rows: parsedRows, tag_ids: tagIds, origin: origem })
+            const count = await onImport({ rows: parsedRows, tag_ids: tagIds, theme_ids: themeIds, origin: origem })
             reset()
             onClose(count)
         } catch {
@@ -148,6 +151,13 @@ export default function ImportModal({ open, onClose, onImport, tags = [] }) {
                             </div>
                         </div>
 
+                        <MultiSelect
+                            label="Temas (aplicados a todos os contatos importados)"
+                            options={themeOptions}
+                            value={themeIds}
+                            onChange={setThemeIds}
+                            placeholder="Selecionar temas..."
+                        />
                         <MultiSelect
                             label="Tags (aplicadas a todos os contatos importados)"
                             options={tagOptions}

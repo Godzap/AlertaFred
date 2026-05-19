@@ -1,43 +1,45 @@
 import { useState, useCallback, useEffect } from 'react'
-import { mockTemplates as initial } from '../data/mockData'
-
-let store = [...initial]
+import { supabase, getCurrentUserId } from '../lib/supabase'
 
 export function useMessages() {
     const [templates, setTemplates] = useState([])
     const [loading, setLoading] = useState(true)
 
-    const fetch = useCallback(async () => {
+    const fetchTemplates = useCallback(async () => {
         setLoading(true)
-        await delay(200)
-        setTemplates([...store])
+        const { data, error } = await supabase
+            .from('message_templates')
+            .select('*')
+            .order('created_at', { ascending: false })
+        if (!error) setTemplates(data ?? [])
         setLoading(false)
     }, [])
 
-    useEffect(() => { fetch() }, [fetch])
+    useEffect(() => { fetchTemplates() }, [fetchTemplates])
 
     const createTemplate = async (payload) => {
-        await delay(400)
-        const item = { id: uid(), user_id: 'user-001', created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...payload }
-        store = [item, ...store]
-        await fetch()
-        return item
+        const user_id = await getCurrentUserId()
+        const { data, error } = await supabase
+            .from('message_templates')
+            .insert({ ...payload, user_id })
+            .select()
+            .single()
+        if (!error) await fetchTemplates()
+        return data
     }
 
     const updateTemplate = async (id, payload) => {
-        await delay(400)
-        store = store.map(t => t.id === id ? { ...t, ...payload, updated_at: new Date().toISOString() } : t)
-        await fetch()
+        await supabase
+            .from('message_templates')
+            .update({ ...payload, updated_at: new Date().toISOString() })
+            .eq('id', id)
+        await fetchTemplates()
     }
 
     const deleteTemplate = async (id) => {
-        await delay(300)
-        store = store.filter(t => t.id !== id)
-        await fetch()
+        await supabase.from('message_templates').delete().eq('id', id)
+        await fetchTemplates()
     }
 
-    return { templates, loading, createTemplate, updateTemplate, deleteTemplate, refetch: fetch }
+    return { templates, loading, createTemplate, updateTemplate, deleteTemplate, refetch: fetchTemplates }
 }
-
-function delay(ms) { return new Promise(r => setTimeout(r, ms)) }
-function uid() { return 'tpl-' + Math.random().toString(36).slice(2, 9) }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { mockContacts, mockAlarms, mockSendLogs, mockActivityLogs, mockThemes } from '../data/mockData'
+import { supabase } from '../lib/supabase'
 
 export function useDashboard() {
     const [data, setData] = useState(null)
@@ -7,29 +7,37 @@ export function useDashboard() {
 
     useEffect(() => {
         const load = async () => {
-            await new Promise(r => setTimeout(r, 300))
+            const now = new Date()
+            const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-            const totalContacts = mockContacts.length
-            const activeContacts = mockContacts.filter(c => c.status === 'active').length
-            const activeAlarms = mockAlarms.filter(a => a.status === 'active').length
-            const sentThisMonth = mockSendLogs.length
-
-            const contactsByTheme = mockThemes.map(t => ({
-                name: t.name,
-                count: t.contact_count,
-                color: t.color,
-            })).sort((a, b) => b.count - a.count).slice(0, 8)
-
-            const nextAlarms = [...mockAlarms]
-                .filter(a => a.status === 'active' && a.next_run)
-                .sort((a, b) => new Date(a.next_run) - new Date(b.next_run))
-                .slice(0, 5)
+            const [
+                { count: totalContacts },
+                { count: activeContacts },
+                { count: activeAlarms },
+                { count: sentThisMonth },
+                { data: themesData },
+                { data: nextAlarmsData },
+                { data: activityData },
+            ] = await Promise.all([
+                supabase.from('contacts').select('*', { count: 'exact', head: true }),
+                supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+                supabase.from('alarms').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+                supabase.from('send_logs').select('*', { count: 'exact', head: true }).gte('sent_at', firstOfMonth),
+                supabase.from('themes_with_count').select('name, contact_count, color').order('contact_count', { ascending: false }).limit(8),
+                supabase.from('alarms').select('*').eq('status', 'active').not('next_run', 'is', null).order('next_run').limit(5),
+                supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(10),
+            ])
 
             setData({
-                stats: { totalContacts, activeContacts, sentThisMonth, activeAlarms },
-                contactsByTheme,
-                nextAlarms,
-                activityLogs: mockActivityLogs,
+                stats: {
+                    totalContacts: totalContacts ?? 0,
+                    activeContacts: activeContacts ?? 0,
+                    sentThisMonth: sentThisMonth ?? 0,
+                    activeAlarms: activeAlarms ?? 0,
+                },
+                contactsByTheme: themesData ?? [],
+                nextAlarms: nextAlarmsData ?? [],
+                activityLogs: activityData ?? [],
             })
             setLoading(false)
         }

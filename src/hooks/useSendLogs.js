@@ -1,40 +1,43 @@
 import { useState, useCallback, useEffect } from 'react'
-import { mockSendLogs as initial } from '../data/mockData'
-
-let store = [...initial]
+import { supabase, getCurrentUserId } from '../lib/supabase'
 
 export function useSendLogs(filters = {}) {
     const [logs, setLogs] = useState([])
     const [loading, setLoading] = useState(true)
     const [total, setTotal] = useState(0)
 
-    const fetch = useCallback(async () => {
+    const fetchLogs = useCallback(async () => {
         setLoading(true)
-        await delay(200)
 
-        let data = [...store].sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at))
+        let query = supabase
+            .from('send_logs')
+            .select('*, contacts(name), alarms(name)', { count: 'exact' })
+            .order('sent_at', { ascending: false })
 
-        if (filters.status) data = data.filter(l => l.status === filters.status)
-        if (filters.alarm_id) data = data.filter(l => l.alarm_id === filters.alarm_id)
+        if (filters.status) query = query.eq('status', filters.status)
+        if (filters.alarm_id) query = query.eq('alarm_id', filters.alarm_id)
         if (filters.search) {
-            const q = filters.search.toLowerCase()
-            data = data.filter(l => l.contact_name?.toLowerCase().includes(q) || l.phone.includes(q))
+            query = query.ilike('phone', `%${filters.search}%`)
         }
 
-        setTotal(data.length)
-        setLogs(data)
+        const { data, count, error } = await query
+        if (!error) {
+            setLogs((data ?? []).map(l => ({
+                ...l,
+                contact_name: l.contacts?.name,
+                alarm_name: l.alarms?.name,
+            })))
+            setTotal(count ?? 0)
+        }
         setLoading(false)
     }, [filters.status, filters.alarm_id, filters.search])
 
-    useEffect(() => { fetch() }, [fetch])
+    useEffect(() => { fetchLogs() }, [fetchLogs])
 
     const addLog = async (payload) => {
-        const item = { id: uid(), user_id: 'user-001', status: 'simulated', sent_at: new Date().toISOString(), ...payload }
-        store = [item, ...store]
+        const user_id = await getCurrentUserId()
+        await supabase.from('send_logs').insert({ status: 'sent', ...payload, user_id })
     }
 
-    return { logs, loading, total, addLog, refetch: fetch }
+    return { logs, loading, total, addLog, refetch: fetchLogs }
 }
-
-function delay(ms) { return new Promise(r => setTimeout(r, ms)) }
-function uid() { return 'sl-' + Math.random().toString(36).slice(2, 9) }

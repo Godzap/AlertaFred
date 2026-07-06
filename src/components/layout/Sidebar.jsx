@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
     LayoutDashboard, Users, Tag, Layers, MessageSquare, Send,
-    FileText, Bell, ClipboardList, LogOut, Zap
+    FileText, Bell, ClipboardList, LogOut, Zap, Table, Cake
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 
@@ -10,6 +10,8 @@ const nav = [
     { to: '/contacts', icon: <Users size={18} strokeWidth={1.75} />, label: 'Contatos' },
     { to: '/themes', icon: <Layers size={18} strokeWidth={1.75} />, label: 'Temas' },
     { to: '/tags', icon: <Tag size={18} strokeWidth={1.75} />, label: 'Tags' },
+    { to: '/spreadsheets', icon: <Table size={18} strokeWidth={1.75} />, label: 'Planilhas' },
+    { to: '/birthdays', icon: <Cake size={18} strokeWidth={1.75} />, label: 'Aniversários' },
     null, // divider
     { to: '/messages', icon: <MessageSquare size={18} strokeWidth={1.75} />, label: 'Templates' },
     { to: '/send', icon: <Send size={18} strokeWidth={1.75} />, label: 'Enviar' },

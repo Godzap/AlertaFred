@@ -15,6 +15,8 @@ import FormPublic from './pages/FormPublic'
 import Alarms from './pages/Alarms'
 import AlarmEditorPage from './pages/AlarmEditorPage'
 import SendLogs from './pages/SendLogs'
+import Spreadsheets from './pages/Spreadsheets'
+import Birthdays from './pages/Birthdays'
 import { useAuth } from './hooks/useAuth'
 import { Loader2 } from 'lucide-react'
 
@@ -67,6 +69,8 @@ export default function App() {
                             <Route path="alarms/new" element={<AlarmEditorPage />} />
                             <Route path="alarms/:id/edit" element={<AlarmEditorPage />} />
                             <Route path="logs" element={<SendLogs />} />
+                            <Route path="spreadsheets" element={<Spreadsheets />} />
+                            <Route path="birthdays" element={<Birthdays />} />
                         </Route>
 
                         <Route path="*" element={<Navigate to="/" replace />} />
